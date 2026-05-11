@@ -21,3 +21,7 @@
    ```bash
    git clone https://github.com/AVALON4231/url-shortener.git
    cd url-shortener
+
+## Примеры запросов
+
+См. документацию Swagger после запуска.
