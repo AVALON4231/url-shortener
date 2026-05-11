@@ -75,6 +75,8 @@ def test_shorten_success(mocker):
     fake_user = {"id": 1, "email": "test@example.com"}
     async def fake_get_current_user():
         return fake_user
+        # Мокаем aiohttp, чтобы избежать реальных HTTP-запросов
+    mocker.patch("aiohttp.ClientSession")
     app.dependency_overrides[get_current_user] = fake_get_current_user
     mocker.patch("database.create_short_link", return_value="abc123")
     try:
@@ -83,7 +85,7 @@ def test_shorten_success(mocker):
         data = response.json()
         assert data["original_url"] == "https://example.com/long-url"
         assert data["short_code"] == "abc123"
-        assert data["short_url"] == "http://127.0.0.1:8000/abc123"
+        assert data["short_url"] == "http://testserver/abc123"
         database.create_short_link.assert_called_once_with("https://example.com/long-url", 1)
     finally:
         app.dependency_overrides.clear()
