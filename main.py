@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import database
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -21,14 +21,22 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # Инициализация базы при старте
-@app.on_event("startup")
-def startup():
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     database.init_db()
+    yield  # приложение работает
+    # здесь можно добавить код для завершения работы (пока не нужно)
+
+app = FastAPI(title="URL Shortener", version="0.4.0", lifespan=lifespan)
 
 # Вспомогательная функция для создания JWT
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    from datetime import timezone
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
