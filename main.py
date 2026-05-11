@@ -1,64 +1,54 @@
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+import os
+
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
-from datetime import datetime, timedelta, timezone
+
 import database
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
-app = FastAPI(title="URL Shortener", version="0.4.0")
 
-# После создания app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    database.init_db()
+    yield
+
+
+app = FastAPI(title="URL Shortener", version="0.4.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)    
+)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-from fastapi.staticfiles import StaticFiles
-import os
-
-# ... после app = FastAPI(...) и middleware ...
-
-# Определяем директорию фронтенда (относительно расположения main.py)
+# Статика и корневой маршрут (до всех остальных эндпоинтов)
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
-
-# Если папка есть, монтируем статику и добавляем индексный маршрут
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
     @app.get("/")
     async def read_index():
-        from fastapi.responses import FileResponse
         return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
-# Инициализация базы при старте
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    database.init_db()
-    yield  # приложение работает
-    # здесь можно добавить код для завершения работы (пока не нужно)
 
-app = FastAPI(title="URL Shortener", version="0.4.0", lifespan=lifespan)
-
-# Вспомогательная функция для создания JWT
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    from datetime import timezone
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Зависимость: получаем текущего пользователя из токена
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -75,9 +65,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     user = database.get_user_by_email(email)
     if user is None:
         raise credentials_exception
-    return user  # возвращаем sqlite3.Row с полями id, email и т.д.
+    return user
 
-# --- Эндпоинты для пользователей ---
+
+# --- Эндпоинты ---
 
 @app.post("/register")
 def register(email: str, password: str):
@@ -88,9 +79,10 @@ def register(email: str, password: str):
         raise HTTPException(status_code=400, detail="Email already registered")
     return {"message": "User created successfully"}
 
+
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = database.get_user_by_email(form_data.username)  # username = email
+    user = database.get_user_by_email(form_data.username)
     if not user or not database.verify_password(form_data.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,7 +95,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- Эндпоинты для ссылок (требуют авторизацию) ---
 
 @app.get("/shorten")
 def shorten_url(url: str, current_user: dict = Depends(get_current_user)):
@@ -117,19 +108,17 @@ def shorten_url(url: str, current_user: dict = Depends(get_current_user)):
         "short_code": short_code
     }
 
+
 @app.get("/{short_code}")
 def redirect_to_original(short_code: str, request: Request):
     original = database.get_original_url(short_code)
     if original is None:
         raise HTTPException(status_code=404, detail="Short link not found")
     database.increment_clicks(short_code)
-    
-    # Если клиент принимает JSON (например, Swagger), возвращаем ссылку
     if "application/json" in request.headers.get("accept", ""):
         return {"location": original}
-    
-    # Иначе делаем обычный редирект (для браузера)
     return RedirectResponse(url=original, status_code=302)
+
 
 @app.get("/stats/{short_code}")
 def get_link_stats(short_code: str, current_user: dict = Depends(get_current_user)):
