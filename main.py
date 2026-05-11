@@ -92,7 +92,7 @@ def shorten_url(url: str, current_user: dict = Depends(get_current_user)):
         "short_code": short_code
     }
 
-@@app.get("/{short_code}")
+@app.get("/{short_code}")
 def redirect_to_original(short_code: str, request: Request):
     original = database.get_original_url(short_code)
     if original is None:
