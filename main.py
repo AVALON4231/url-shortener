@@ -20,6 +20,23 @@ app.add_middleware(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+from fastapi.staticfiles import StaticFiles
+import os
+
+# ... после app = FastAPI(...) и middleware ...
+
+# Определяем директорию фронтенда (относительно расположения main.py)
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+
+# Если папка есть, монтируем статику и добавляем индексный маршрут
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+    @app.get("/")
+    async def read_index():
+        from fastapi.responses import FileResponse
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
 # Инициализация базы при старте
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
