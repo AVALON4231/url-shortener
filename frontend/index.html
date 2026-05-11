@@ -84,6 +84,90 @@
       transition: color 0.15s;
     }
     .btn-delete:hover { color: #e74c3c; }
+
+    /* ── Кастомная модалка подтверждения удаления ── */
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 20, 60, 0.55);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .confirm-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .confirm-box {
+      background: #fff;
+      border-radius: 1rem;
+      padding: 2rem 1.75rem 1.5rem;
+      max-width: 360px;
+      width: calc(100% - 2rem);
+      box-shadow: 0 1rem 3rem rgba(0,0,0,0.25);
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.22s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
+      opacity: 0;
+      text-align: center;
+    }
+    .confirm-overlay.visible .confirm-box {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    .confirm-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #fff0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 1.5rem;
+    }
+    .confirm-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #222;
+      margin-bottom: 0.4rem;
+    }
+    .confirm-subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 1.5rem;
+      word-break: break-all;
+    }
+    .confirm-actions {
+      display: flex;
+      gap: 0.6rem;
+    }
+    .confirm-actions button {
+      flex: 1;
+      padding: 0.55rem 0;
+      border-radius: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .confirm-actions button:active { transform: scale(0.97); }
+    .btn-confirm-cancel {
+      background: #f0f0f5;
+      color: #444;
+    }
+    .btn-confirm-cancel:hover { filter: brightness(0.95); }
+    .btn-confirm-delete {
+      background: #e74c3c;
+      color: #fff;
+    }
+    .btn-confirm-delete:hover { filter: brightness(0.9); }
   </style>
 </head>
 <body>
@@ -140,6 +224,19 @@
     <div id="history-list" class="mt-2"></div>
     <hr>
     <button class="btn btn-outline-danger btn-sm w-100" onclick="logout()">Выйти</button>
+  </div>
+
+  <!-- Кастомная модалка подтверждения удаления -->
+  <div id="confirm-overlay" class="confirm-overlay" onclick="confirmCancel(event)">
+    <div class="confirm-box">
+      <div class="confirm-icon">🗑️</div>
+      <div class="confirm-title">Удалить ссылку?</div>
+      <div class="confirm-subtitle" id="confirm-subtitle"></div>
+      <div class="confirm-actions">
+        <button class="btn-confirm-cancel" onclick="confirmResolve(false)">Отмена</button>
+        <button class="btn-confirm-delete" onclick="confirmResolve(true)">Удалить</button>
+      </div>
+    </div>
   </div>
 
   <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center hidden" style="background: rgba(0,0,0,0.5); z-index: 9999;">
@@ -259,19 +356,39 @@
               <div class="history-meta">${clicksStr}${dateStr ? ' · ' + dateStr : ''}</div>
             </div>
             <!-- ПУНКТ 7: кнопка удаления ссылки -->
-            <button class="btn-delete" onclick="deleteLink('${escapeHtml(item.short_code)}')" title="Удалить">✕</button>
+            <button class="btn-delete" onclick="deleteLink('${escapeHtml(item.short_code)}', '${escapeHtml(item.short_url)}')" title="Удалить">✕</button>
           </div>
         `;
       }).join('');
     }
 
-    // ---------------------------------------------------------------
-    // ПУНКТ 7: функция удаления ссылки.
-    // Отправляет DELETE-запрос, при успехе убирает карточку из DOM
-    // без перезагрузки всего списка.
-    // ---------------------------------------------------------------
-    async function deleteLink(shortCode) {
-      if (!confirm('Удалить эту ссылку?')) return;
+    // ── Кастомная модалка подтверждения ──────────────────────────
+    // Работает как Promise: возвращает true (удалить) или false (отмена).
+    // deleteLink вызывает showConfirm() и ждёт ответа через await.
+    let _confirmResolve = null;
+
+    function showConfirm(subtitle) {
+      document.getElementById('confirm-subtitle').textContent = subtitle;
+      const overlay = document.getElementById('confirm-overlay');
+      overlay.classList.add('visible');
+      return new Promise(resolve => { _confirmResolve = resolve; });
+    }
+
+    function confirmResolve(result) {
+      const overlay = document.getElementById('confirm-overlay');
+      overlay.classList.remove('visible');
+      if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+    }
+
+    // Клик по тёмному фону = отмена
+    function confirmCancel(e) {
+      if (e.target === document.getElementById('confirm-overlay')) confirmResolve(false);
+    }
+
+    // ── Удаление ссылки ───────────────────────────────────────────
+    async function deleteLink(shortCode, linkTitle) {
+      const confirmed = await showConfirm(linkTitle);
+      if (!confirmed) return;  // пользователь нажал «Отмена»
       const currentToken = localStorage.getItem('shortener_token');
       try {
         const res = await fetch(`/my-links/${shortCode}`, {
