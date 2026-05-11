@@ -97,14 +97,23 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 
 @app.get("/shorten")
-def shorten_url(url: str, current_user: dict = Depends(get_current_user)):
+def shorten_url(url: str, request: Request, current_user: dict = Depends(get_current_user)):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
     user_id = current_user["id"]
     short_code = database.create_short_link(url, user_id)
+
+    # Формируем базовый URL из заголовков запроса
+    base = request.headers.get("x-forwarded-proto", request.url.scheme) + "://"
+    base += request.headers.get("x-forwarded-host", request.headers.get("host", "127.0.0.1:8000"))
+    if "?" in base:
+        base = base.split("?")[0]
+    if "#" in base:
+        base = base.split("#")[0]
+    short_url = f"{base}/{short_code}"
     return {
         "original_url": url,
-        "short_url": f"http://127.0.0.1:8000/{short_code}",
+        "short_url": short_url,
         "short_code": short_code
     }
 
@@ -119,6 +128,27 @@ def redirect_to_original(short_code: str, request: Request):
         return {"location": original}
     return RedirectResponse(url=original, status_code=302)
 
+import aiohttp
+
+@app.get("/fetch-title")
+async def fetch_title(url: str):
+    if not url.startswith(('http://', 'https://')):
+        raise HTTPException(status_code=400, detail="Invalid URL scheme")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=5) as resp:
+                if resp.status != 200:
+                    return {"title": url}
+                text = await resp.text()
+                # Простой поиск <title> (без регулярных выражений)
+                start = text.lower().find('<title>')
+                end = text.lower().find('</title>', start)
+                if start != -1 and end != -1:
+                    title = text[start+7:end].strip()
+                    return {"title": title[:200]}  # обрезаем
+                return {"title": url}
+    except Exception:
+        return {"title": url}
 
 @app.get("/stats/{short_code}")
 def get_link_stats(short_code: str, current_user: dict = Depends(get_current_user)):
