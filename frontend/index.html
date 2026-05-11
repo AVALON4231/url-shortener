@@ -124,15 +124,15 @@
 
     function showRegister() { show('step-register'); }
     function showLogin() { show('step-login'); }
-    function showShorten() {
+    async function showShorten() {
       show('step-shorten');
-      renderHistory();
+      await loadHistory();
     }
 
     if (token) {
       showShorten();
     } else {
-      showLogin();
+      showRegister();
     }
 
     function loading(show) {
@@ -160,42 +160,33 @@
       }
     }
 
-    // Работа с историей
-    function getHistory() {
+    async function loadHistory() {
+      const currentToken = localStorage.getItem('shortener_token');
+      if (!currentToken) return;
       try {
-        return JSON.parse(localStorage.getItem('shortener_history') || '[]');
-      } catch { return []; }
-    }
-
-    function addHistoryItem(originalUrl, shortUrl, title) {
-      const history = getHistory();
-      history.unshift({ originalUrl, shortUrl, title: title || originalUrl });
-      localStorage.setItem('shortener_history', JSON.stringify(history.slice(0, 20))); // храним последние 20
-    }
-
-    async function fetchTitle(url) {
-      try {
-        const res = await fetch(`/fetch-title?url=${encodeURIComponent(url)}`);
+        const res = await fetch('/my-links', {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
         if (res.ok) {
-          const data = await res.json();
-          return data.title || url;
+          const links = await res.json();
+          renderHistory(links);
         }
-      } catch {}
-      return url;
+      } catch (e) {
+        console.error(e);
+      }
     }
 
-    function renderHistory() {
+    function renderHistory(links) {
       const list = document.getElementById('history-list');
-      const history = getHistory();
-      if (history.length === 0) {
+      if (!links || links.length === 0) {
         list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
         return;
       }
-      list.innerHTML = history.map(item => `
+      list.innerHTML = links.map(item => `
         <div class="history-item">
           <div class="history-title">${escapeHtml(item.title)}</div>
           <div class="history-short">
-            <a href="${item.shortUrl}" target="_blank">${item.shortUrl}</a>
+            <a href="${item.short_url}" target="_blank">${item.short_url}</a>
           </div>
         </div>
       `).join('');
@@ -234,7 +225,7 @@
         }
         const data = await loginRes.json();
         localStorage.setItem('shortener_token', data.access_token);
-        showShorten();
+        await showShorten();
       } catch (e) {
         setError('register', e.message);
       } finally {
@@ -262,7 +253,7 @@
         }
         const data = await res.json();
         localStorage.setItem('shortener_token', data.access_token);
-        showShorten();
+        await showShorten();
       } catch (e) {
         setError('login', e.message);
       } finally {
@@ -280,9 +271,9 @@
       }
       loading(true);
       try {
-        const token = localStorage.getItem('shortener_token');
+        const currentToken = localStorage.getItem('shortener_token');
         const res = await fetch(`/shorten?url=${encodeURIComponent(longUrl)}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         if (!res.ok) {
           const err = await res.json();
@@ -295,10 +286,8 @@
             <a href="${data.short_url}" target="_blank" class="short-link">${data.short_url}</a>
           </div>`;
         document.getElementById('long-url').value = '';
-        // Получаем title и добавляем в историю
-        const title = await fetchTitle(longUrl);
-        addHistoryItem(longUrl, data.short_url, title);
-        renderHistory();
+        // Обновляем историю с сервера
+        await loadHistory();
       } catch (e) {
         if (e.message.includes('401') || e.message.includes('Unauthorized')) {
           localStorage.removeItem('shortener_token');
@@ -314,7 +303,6 @@
 
     function logout() {
       localStorage.removeItem('shortener_token');
-      // Перенаправляем на вход, а не на регистрацию
       showLogin();
     }
   </script>

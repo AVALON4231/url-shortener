@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import os
+import aiohttp
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,24 +98,38 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 
 @app.get("/shorten")
-def shorten_url(url: str, request: Request, current_user: dict = Depends(get_current_user)):
+async def shorten_url(url: str, request: Request, current_user: dict = Depends(get_current_user)):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
     user_id = current_user["id"]
     short_code = database.create_short_link(url, user_id)
 
-    # Формируем базовый URL из заголовков запроса
+    # Получаем заголовок страницы (асинхронно)
+    title = url
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=5) as resp:
+                if resp.status == 200:
+                    html = await resp.text()
+                    start = html.lower().find('<title>')
+                    end = html.lower().find('</title>', start)
+                    if start != -1 and end != -1:
+                        title = html[start+7:end].strip()[:200]
+    except Exception:
+        pass
+    database.update_link_title(short_code, title)
+
+    # Формируем короткую ссылку с правильным доменом
     base = request.headers.get("x-forwarded-proto", request.url.scheme) + "://"
     base += request.headers.get("x-forwarded-host", request.headers.get("host", "127.0.0.1:8000"))
-    if "?" in base:
-        base = base.split("?")[0]
-    if "#" in base:
-        base = base.split("#")[0]
+    base = base.split("?")[0].split("#")[0]
     short_url = f"{base}/{short_code}"
+
     return {
         "original_url": url,
         "short_url": short_url,
-        "short_code": short_code
+        "short_code": short_code,
+        "title": title
     }
 
 
@@ -128,27 +143,6 @@ def redirect_to_original(short_code: str, request: Request):
         return {"location": original}
     return RedirectResponse(url=original, status_code=302)
 
-import aiohttp
-
-@app.get("/fetch-title")
-async def fetch_title(url: str):
-    if not url.startswith(('http://', 'https://')):
-        raise HTTPException(status_code=400, detail="Invalid URL scheme")
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=5) as resp:
-                if resp.status != 200:
-                    return {"title": url}
-                text = await resp.text()
-                # Простой поиск <title> (без регулярных выражений)
-                start = text.lower().find('<title>')
-                end = text.lower().find('</title>', start)
-                if start != -1 and end != -1:
-                    title = text[start+7:end].strip()
-                    return {"title": title[:200]}  # обрезаем
-                return {"title": url}
-    except Exception:
-        return {"title": url}
 
 @app.get("/stats/{short_code}")
 def get_link_stats(short_code: str, current_user: dict = Depends(get_current_user)):
@@ -156,3 +150,18 @@ def get_link_stats(short_code: str, current_user: dict = Depends(get_current_use
     if stats is None:
         raise HTTPException(status_code=404, detail="Short link not found or not yours")
     return stats
+
+
+@app.get("/my-links")
+async def my_links(request: Request, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    links = database.get_user_links(user_id)
+
+    # Формируем полный short_url
+    base = request.headers.get("x-forwarded-proto", "http") + "://"
+    base += request.headers.get("x-forwarded-host", request.headers.get("host", "127.0.0.1:8000"))
+    base = base.split("?")[0].split("#")[0]
+
+    for link in links:
+        link["short_url"] = f"{base}/{link['short_code']}"
+    return links
