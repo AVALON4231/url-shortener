@@ -108,7 +108,8 @@ async def shorten_url(url: str, request: Request, current_user: dict = Depends(g
     title = url
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=5) as resp:
+            headers = {"User-Agent": "ShortURL Bot/1.0"}
+            async with session.get(url, timeout=2, headers=headers) as resp:
                 if resp.status == 200:
                     html = await resp.text()
                     start = html.lower().find('<title>')

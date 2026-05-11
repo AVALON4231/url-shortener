@@ -126,13 +126,16 @@
     function showLogin() { show('step-login'); }
     async function showShorten() {
       show('step-shorten');
+      document.getElementById('result').innerHTML = '';
+      document.getElementById('long-url').value = '';
+      document.getElementById('history-list').innerHTML = '<p class="text-muted">Загрузка...</p>';
       await loadHistory();
     }
 
     if (token) {
       showShorten();
     } else {
-      showRegister();
+      showLogin();
     }
 
     function loading(show) {
@@ -198,7 +201,6 @@
       return div.innerHTML;
     }
 
-    // Регистрация (сразу + вход)
     async function register() {
       const login = document.getElementById('reg-email').value.trim();
       const password = document.getElementById('reg-password').value;
@@ -214,7 +216,6 @@
           const err = await res.json();
           throw new Error(err.detail || 'Ошибка регистрации');
         }
-        // Авто-вход
         const formData = new URLSearchParams();
         formData.append('username', login);
         formData.append('password', password);
@@ -286,7 +287,6 @@
             <a href="${data.short_url}" target="_blank" class="short-link">${data.short_url}</a>
           </div>`;
         document.getElementById('long-url').value = '';
-        // Обновляем историю с сервера
         await loadHistory();
       } catch (e) {
         if (e.message.includes('401') || e.message.includes('Unauthorized')) {
@@ -303,6 +303,8 @@
 
     function logout() {
       localStorage.removeItem('shortener_token');
+      document.getElementById('result').innerHTML = '';
+      document.getElementById('history-list').innerHTML = '';
       showLogin();
     }
   </script>
