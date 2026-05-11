@@ -5,14 +5,13 @@ import psycopg2
 from passlib.context import CryptContext
 
 # Читаем DATABASE_URL из переменной окружения (Render передаст её автоматически)
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set!")
+DATABASE_URL = os.getenv("DATABASE_URL")  # может быть None
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 def get_db():
-    """Подключение к PostgreSQL (каждый раз новое, для простоты)."""
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set!")
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
