@@ -37,21 +37,53 @@
       display: flex;
       align-items: center;
     }
+
+    /* ПУНКТ 5: обновлённые стили карточки истории — теперь в ней больше данных */
     .history-item {
       background: #f8f9fa;
-      padding: 0.5rem;
-      border-radius: 0.25rem;
-      margin-bottom: 0.25rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 0.375rem;
+      margin-bottom: 0.4rem;
       font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .history-item-body {
+      flex: 1;
+      min-width: 0;
     }
     .history-title {
       font-weight: 500;
       color: #333;
       word-break: break-word;
+      margin-bottom: 0.1rem;
     }
-    .history-short {
+    .history-short a {
       color: #6c5ce7;
+      text-decoration: none;
     }
+    .history-short a:hover {
+      text-decoration: underline;
+    }
+    .history-meta {
+      font-size: 0.78rem;
+      color: #888;
+      margin-top: 0.2rem;
+    }
+    .btn-delete {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 1rem;
+      padding: 0 0.25rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .btn-delete:hover { color: #e74c3c; }
   </style>
 </head>
 <body>
@@ -138,8 +170,8 @@
       showLogin();
     }
 
-    function loading(show) {
-      document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+    function loading(on) {
+      document.getElementById('loading-overlay').classList.toggle('hidden', !on);
     }
 
     function setError(step, message) {
@@ -163,6 +195,13 @@
       }
     }
 
+    // ---------------------------------------------------------------
+    // ПУНКТ 6: обработка 401 в loadHistory.
+    // Раньше: если токен протух — история тихо не загружалась,
+    // пользователь не понимал почему.
+    // Теперь: при 401 токен удаляется и пользователь уходит на логин
+    // с понятным сообщением.
+    // ---------------------------------------------------------------
     async function loadHistory() {
       const currentToken = localStorage.getItem('shortener_token');
       if (!currentToken) return;
@@ -170,56 +209,132 @@
         const res = await fetch('/my-links', {
           headers: { 'Authorization': `Bearer ${currentToken}` }
         });
+        if (res.status === 401) {
+          // ПУНКТ 6: токен протух — разлогиниваем
+          localStorage.removeItem('shortener_token');
+          showLogin();
+          setError('login', 'Сессия истекла, войдите заново');
+          return;
+        }
         if (res.ok) {
           const links = await res.json();
           renderHistory(links);
         }
       } catch (e) {
-        console.error(e);
+        console.error('Ошибка загрузки истории:', e);
+        document.getElementById('history-list').innerHTML =
+          '<p class="text-muted text-danger">Не удалось загрузить историю</p>';
       }
     }
 
+    // ---------------------------------------------------------------
+    // ПУНКТ 5 + ПУНКТ 7: отображение кликов, даты и кнопки удаления.
+    // Раньше в истории был только заголовок и ссылка.
+    // ---------------------------------------------------------------
     function renderHistory(links) {
       const list = document.getElementById('history-list');
       if (!links || links.length === 0) {
         list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
         return;
       }
-      list.innerHTML = links.map(item => `
-        <div class="history-item">
-          <div class="history-title">${escapeHtml(item.title)}</div>
-          <div class="history-short">
-            <a href="${item.short_url}" target="_blank">${item.short_url}</a>
+      list.innerHTML = links.map(item => {
+        // ПУНКТ 5: форматируем дату красиво
+        let dateStr = '';
+        if (item.created_at) {
+          const d = new Date(item.created_at);
+          if (!isNaN(d)) {
+            dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          }
+        }
+        // ПУНКТ 5: форматируем клики
+        const clicksStr = item.clicks === 1 ? '1 переход' : `${item.clicks} переходов`;
+
+        return `
+          <div class="history-item" id="item-${escapeHtml(item.short_code)}">
+            <div class="history-item-body">
+              <div class="history-title">${escapeHtml(item.title)}</div>
+              <div class="history-short">
+                <a href="${item.short_url}" target="_blank">${item.short_url}</a>
+              </div>
+              <div class="history-meta">${clicksStr}${dateStr ? ' · ' + dateStr : ''}</div>
+            </div>
+            <!-- ПУНКТ 7: кнопка удаления ссылки -->
+            <button class="btn-delete" onclick="deleteLink('${escapeHtml(item.short_code)}')" title="Удалить">✕</button>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    // ---------------------------------------------------------------
+    // ПУНКТ 7: функция удаления ссылки.
+    // Отправляет DELETE-запрос, при успехе убирает карточку из DOM
+    // без перезагрузки всего списка.
+    // ---------------------------------------------------------------
+    async function deleteLink(shortCode) {
+      if (!confirm('Удалить эту ссылку?')) return;
+      const currentToken = localStorage.getItem('shortener_token');
+      try {
+        const res = await fetch(`/my-links/${shortCode}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+          // Убираем карточку из DOM без перезагрузки списка
+          const el = document.getElementById(`item-${shortCode}`);
+          if (el) el.remove();
+          // Если список опустел — показываем заглушку
+          const list = document.getElementById('history-list');
+          if (!list.querySelector('.history-item')) {
+            list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
+          }
+        } else if (res.status === 401) {
+          localStorage.removeItem('shortener_token');
+          showLogin();
+          setError('login', 'Сессия истекла, войдите заново');
+        } else {
+          alert('Не удалось удалить ссылку');
+        }
+      } catch (e) {
+        console.error('Ошибка удаления:', e);
+        alert('Ошибка при удалении');
+      }
     }
 
     function escapeHtml(text) {
       const div = document.createElement('div');
-      div.textContent = text;
+      div.textContent = String(text);
       return div.innerHTML;
     }
 
     async function register() {
-      const login = document.getElementById('reg-email').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
       const password = document.getElementById('reg-password').value;
       setError('register', '');
-      if (!login || !password) {
+      if (!email || !password) {
         setError('register', 'Заполните все поля');
         return;
       }
       loading(true);
       try {
-        const res = await fetch(`/register?email=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`, { method: 'POST' });
+        // ПУНКТ 1: данные идут в теле запроса (JSON), не в URL
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.detail || 'Ошибка регистрации');
         }
+        // После регистрации — сразу логинимся
         const formData = new URLSearchParams();
-        formData.append('username', login);
+        formData.append('username', email);
         formData.append('password', password);
-        const loginRes = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+        const loginRes = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData
+        });
         if (!loginRes.ok) {
           const err = await loginRes.json();
           throw new Error(err.detail || 'Ошибка входа после регистрации');
@@ -235,19 +350,23 @@
     }
 
     async function login() {
-      const login = document.getElementById('login-email').value.trim();
+      const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       setError('login', '');
-      if (!login || !password) {
+      if (!email || !password) {
         setError('login', 'Заполните все поля');
         return;
       }
       loading(true);
       try {
         const formData = new URLSearchParams();
-        formData.append('username', login);
+        formData.append('username', email);
         formData.append('password', password);
-        const res = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData
+        });
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.detail || 'Ошибка входа');
@@ -276,6 +395,13 @@
         const res = await fetch(`/shorten?url=${encodeURIComponent(longUrl)}`, {
           headers: { 'Authorization': `Bearer ${currentToken}` }
         });
+        if (res.status === 401) {
+          // ПУНКТ 6: токен протух
+          localStorage.removeItem('shortener_token');
+          showLogin();
+          setError('login', 'Сессия истекла, войдите заново');
+          return;
+        }
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.detail || 'Ошибка сокращения');
@@ -289,13 +415,7 @@
         document.getElementById('long-url').value = '';
         await loadHistory();
       } catch (e) {
-        if (e.message.includes('401') || e.message.includes('Unauthorized')) {
-          localStorage.removeItem('shortener_token');
-          showLogin();
-          setError('login', 'Сессия истекла, войдите заново');
-        } else {
-          setError('shorten', e.message);
-        }
+        setError('shorten', e.message);
       } finally {
         loading(false);
       }
