@@ -61,3 +61,13 @@
 ## Лицензия
 
 - Этот проект распространяется под лицензией MIT. См. файл [LICENSE](LICENSE.txt).
+
+## Демонстрация
+
+![Swagger Docs](docs/images/swagger.png)
+![GIF Demo](docs/images/register.gif)
+![GIF Demo](docs/images/login.gif)
+![GIF Demo](docs/images/authorize.gif)
+![GIF Demo](docs/images/shorten.gif)
+![GIF Demo](docs/images/shortcode.gif)
+![GIF Demo](docs/images/stats.gif)
