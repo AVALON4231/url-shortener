@@ -69,7 +69,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# --- Эндпоинты ---
+# --- Эндпоинты (точные пути идут первыми, динамический сегмент — последним) ---
 
 @app.post("/register")
 def register(email: str, password: str):
@@ -133,15 +133,18 @@ async def shorten_url(url: str, request: Request, current_user: dict = Depends(g
     }
 
 
-@app.get("/{short_code}")
-def redirect_to_original(short_code: str, request: Request):
-    original = database.get_original_url(short_code)
-    if original is None:
-        raise HTTPException(status_code=404, detail="Short link not found")
-    database.increment_clicks(short_code)
-    if "application/json" in request.headers.get("accept", ""):
-        return {"location": original}
-    return RedirectResponse(url=original, status_code=302)
+@app.get("/my-links")
+async def my_links(request: Request, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    links = database.get_user_links(user_id)
+
+    base = request.headers.get("x-forwarded-proto", "http") + "://"
+    base += request.headers.get("x-forwarded-host", request.headers.get("host", "127.0.0.1:8000"))
+    base = base.split("?")[0].split("#")[0]
+
+    for link in links:
+        link["short_url"] = f"{base}/{link['short_code']}"
+    return links
 
 
 @app.get("/stats/{short_code}")
@@ -152,16 +155,13 @@ def get_link_stats(short_code: str, current_user: dict = Depends(get_current_use
     return stats
 
 
-@app.get("/my-links")
-async def my_links(request: Request, current_user: dict = Depends(get_current_user)):
-    user_id = current_user["id"]
-    links = database.get_user_links(user_id)
-
-    # Формируем полный short_url
-    base = request.headers.get("x-forwarded-proto", "http") + "://"
-    base += request.headers.get("x-forwarded-host", request.headers.get("host", "127.0.0.1:8000"))
-    base = base.split("?")[0].split("#")[0]
-
-    for link in links:
-        link["short_url"] = f"{base}/{link['short_code']}"
-    return links
+# Динамический сегмент — строго в конце
+@app.get("/{short_code}")
+def redirect_to_original(short_code: str, request: Request):
+    original = database.get_original_url(short_code)
+    if original is None:
+        raise HTTPException(status_code=404, detail="Short link not found")
+    database.increment_clicks(short_code)
+    if "application/json" in request.headers.get("accept", ""):
+        return {"location": original}
+    return RedirectResponse(url=original, status_code=302)
