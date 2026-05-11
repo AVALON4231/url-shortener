@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import RedirectResponse
@@ -92,12 +92,18 @@ def shorten_url(url: str, current_user: dict = Depends(get_current_user)):
         "short_code": short_code
     }
 
-@app.get("/{short_code}")
-def redirect_to_original(short_code: str):
+@@app.get("/{short_code}")
+def redirect_to_original(short_code: str, request: Request):
     original = database.get_original_url(short_code)
     if original is None:
         raise HTTPException(status_code=404, detail="Short link not found")
     database.increment_clicks(short_code)
+    
+    # Если клиент принимает JSON (например, Swagger), возвращаем ссылку
+    if "application/json" in request.headers.get("accept", ""):
+        return {"location": original}
+    
+    # Иначе делаем обычный редирект (для браузера)
     return RedirectResponse(url=original, status_code=302)
 
 @app.get("/stats/{short_code}")
