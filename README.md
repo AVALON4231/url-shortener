@@ -30,7 +30,8 @@
 
 2. Создайте и активируйте виртуальное окружение:
    python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
+   source venv/bin/activate  
+   # Windows: venv\Scripts\activate
 
 3. Установите зависимости:   
    pip install -r requirements.txt
@@ -48,7 +49,7 @@
 
 - pytest
 
-   Тесты автоматически запускаются при каждом пуше через GitHub Actions.
+Тесты автоматически запускаются при каждом пуше через GitHub Actions.
 
 ## Деплой
 
@@ -56,4 +57,4 @@
 
 ## Лицензия
 
-- Этот проект распространяется под лицензией MIT. См. файл [LICENSE](LICENSE).
+- Этот проект распространяется под лицензией MIT. См. файл [LICENSE](LICENSE.txt).
