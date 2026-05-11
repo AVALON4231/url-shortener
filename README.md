@@ -29,9 +29,11 @@
    cd url-shortener
 
 2. Создайте и активируйте виртуальное окружение:
+
    python -m venv venv
+
    source venv/bin/activate  
-   
+
    Windows: venv\Scripts\activate
 
 3. Установите зависимости:   
