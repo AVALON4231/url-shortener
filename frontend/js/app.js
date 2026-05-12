@@ -2,6 +2,14 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
+// Простейшее управление спиннером
+function showLoading() {
+  document.getElementById('loading-overlay')?.classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay')?.classList.add('hidden');
+}
+
 async function init() {
   initModal();
 
@@ -22,9 +30,7 @@ async function init() {
 
 function attachDeleteHandlers() {
   document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
-      deleteLink(btn.dataset.code, btn.dataset.url);
-    });
+    btn.addEventListener('click', () => deleteLink(btn.dataset.code, btn.dataset.url));
   });
 }
 
@@ -32,6 +38,7 @@ async function deleteLink(shortCode, shortUrl) {
   const confirmed = await showConfirm(shortUrl);
   if (!confirmed) return;
   try {
+    showLoading();
     await apiRequest(`/my-links/${shortCode}`, { method: 'DELETE' });
     const el = document.getElementById(`item-${shortCode}`);
     if (el) el.remove();
@@ -40,6 +47,8 @@ async function deleteLink(shortCode, shortUrl) {
     }
   } catch (e) {
     console.error('Удаление:', e);
+  } finally {
+    hideLoading();
   }
 }
 
@@ -48,13 +57,18 @@ window.login = async () => {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   if (!email || !password) { setError('login', 'Заполните все поля'); return; }
+  showLoading();
   try {
     await login(email, password);
     show('step-shorten');
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) { setError('login', e.message); }
+  } catch (e) {
+    setError('login', e.message);
+  } finally {
+    hideLoading();
+  }
 };
 
 window.register = async () => {
@@ -62,13 +76,18 @@ window.register = async () => {
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
   if (!email || !password) { setError('register', 'Заполните все поля'); return; }
+  showLoading();
   try {
     await register(email, password);
     show('step-shorten');
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) { setError('register', e.message); }
+  } catch (e) {
+    setError('register', e.message);
+  } finally {
+    hideLoading();
+  }
 };
 
 window.shorten = async () => {
@@ -76,6 +95,7 @@ window.shorten = async () => {
   document.getElementById('result').innerHTML = '';
   const url = document.getElementById('long-url').value.trim();
   if (!url) { setError('shorten', 'Введите URL'); return; }
+  showLoading();
   try {
     const data = await apiRequest('/shorten', {
       method: 'POST',
@@ -95,7 +115,11 @@ window.shorten = async () => {
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) { setError('shorten', e.message); }
+  } catch (e) {
+    setError('shorten', e.message);
+  } finally {
+    hideLoading();
+  }
 };
 
 window.logout = () => {
