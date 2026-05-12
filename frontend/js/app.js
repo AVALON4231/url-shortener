@@ -2,9 +2,10 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
-// Индикатор загрузки
+// Управление оверлеем загрузки
 function loading(show) {
-  document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.toggle('hidden', !show);
 }
 
 async function init() {
@@ -12,6 +13,8 @@ async function init() {
 
   const token = localStorage.getItem('shortener_token');
   if (token) {
+    // При наличии токена сразу показываем экран сокращения и загружаем историю
+    show('step-shorten');
     await loadApp();
   } else {
     show('step-login');
@@ -19,13 +22,17 @@ async function init() {
 }
 
 async function loadApp() {
-  show('step-shorten');
+  // Показываем индикатор, пока история загружается
+  loading(true);
   try {
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
   } catch (e) {
     // 401 обрабатывается в api.js через событие 'unauthorized'
+    console.error('Ошибка загрузки истории:', e);
+  } finally {
+    loading(false);
   }
 }
 
@@ -41,8 +48,8 @@ async function deleteLink(shortCode, shortUrl) {
   const confirmed = await showConfirm(shortUrl);
   if (!confirmed) return;
 
+  loading(true);
   try {
-    loading(true);                          // индикатор при удалении
     await apiRequest(`/my-links/${shortCode}`, { method: 'DELETE' });
 
     const el = document.getElementById(`item-${shortCode}`);
