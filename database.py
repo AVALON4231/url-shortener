@@ -281,3 +281,12 @@ def delete_link(short_code: str, user_id: int) -> bool:
     cur.close()
     conn.close()
     return deleted
+
+def get_links_count():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM urls")
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return count

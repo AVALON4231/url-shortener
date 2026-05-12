@@ -3,548 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShortURL — личный сокращатель ссылок</title>
+  <title>ShortURL</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .card {
-      border: none;
-      border-radius: 1rem;
-      box-shadow: 0 0.5rem 2rem rgba(0,0,0,0.2);
-      width: 100%;
-      max-width: 600px;
-    }
-    .btn-primary { background: #667eea; border: none; }
-    .btn-success { background: #2ecc71; border: none; }
-    .short-link { word-break: break-all; color: #6c5ce7; font-weight: 600; }
-    .step-title { font-weight: 600; color: #333; }
-    .hidden { display: none !important; }
-    .input-group .toggle-password {
-      cursor: pointer;
-      background: white;
-      border: 1px solid #ced4da;
-      border-left: none;
-      border-radius: 0 0.375rem 0.375rem 0;
-      padding: 0.375rem 0.75rem;
-      display: flex;
-      align-items: center;
-    }
-
-    /* ПУНКТ 5: обновлённые стили карточки истории — теперь в ней больше данных */
-    .history-item {
-      background: #f8f9fa;
-      padding: 0.6rem 0.75rem;
-      border-radius: 0.375rem;
-      margin-bottom: 0.4rem;
-      font-size: 0.9rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
-    .history-item-body {
-      flex: 1;
-      min-width: 0;
-    }
-    .history-title {
-      font-weight: 500;
-      color: #333;
-      word-break: break-word;
-      margin-bottom: 0.1rem;
-    }
-    .history-short a {
-      color: #6c5ce7;
-      text-decoration: none;
-    }
-    .history-short a:hover {
-      text-decoration: underline;
-    }
-    .history-meta {
-      font-size: 0.78rem;
-      color: #888;
-      margin-top: 0.2rem;
-    }
-    .btn-delete {
-      flex-shrink: 0;
-      background: none;
-      border: none;
-      color: #ccc;
-      font-size: 1rem;
-      padding: 0 0.25rem;
-      cursor: pointer;
-      line-height: 1;
-      transition: color 0.15s;
-    }
-    .btn-delete:hover { color: #e74c3c; }
-
-    /* ── Кастомная модалка подтверждения удаления ── */
-    .confirm-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(30, 20, 60, 0.55);
-      backdrop-filter: blur(3px);
-      -webkit-backdrop-filter: blur(3px);
-      z-index: 10000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-      pointer-events: none;
-    }
-    .confirm-overlay.visible {
-      opacity: 1;
-      pointer-events: all;
-    }
-    .confirm-box {
-      background: #fff;
-      border-radius: 1rem;
-      padding: 2rem 1.75rem 1.5rem;
-      max-width: 360px;
-      width: calc(100% - 2rem);
-      box-shadow: 0 1rem 3rem rgba(0,0,0,0.25);
-      transform: translateY(16px) scale(0.97);
-      transition: transform 0.22s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
-      opacity: 0;
-      text-align: center;
-    }
-    .confirm-overlay.visible .confirm-box {
-      transform: translateY(0) scale(1);
-      opacity: 1;
-    }
-    .confirm-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 50%;
-      background: #fff0f0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1rem;
-      font-size: 1.5rem;
-    }
-    .confirm-title {
-      font-weight: 700;
-      font-size: 1.05rem;
-      color: #222;
-      margin-bottom: 0.4rem;
-    }
-    .confirm-subtitle {
-      font-size: 0.85rem;
-      color: #888;
-      margin-bottom: 1.5rem;
-      word-break: break-all;
-    }
-    .confirm-actions {
-      display: flex;
-      gap: 0.6rem;
-    }
-    .confirm-actions button {
-      flex: 1;
-      padding: 0.55rem 0;
-      border-radius: 0.5rem;
-      font-size: 0.95rem;
-      font-weight: 500;
-      border: none;
-      cursor: pointer;
-      transition: filter 0.15s, transform 0.1s;
-    }
-    .confirm-actions button:active { transform: scale(0.97); }
-    .btn-confirm-cancel {
-      background: #f0f0f5;
-      color: #444;
-    }
-    .btn-confirm-cancel:hover { filter: brightness(0.95); }
-    .btn-confirm-delete {
-      background: #e74c3c;
-      color: #fff;
-    }
-    .btn-confirm-delete:hover { filter: brightness(0.9); }
-  </style>
 </head>
-<body>
-  <!-- Регистрация -->
-  <div id="step-register" class="card p-4 hidden">
-    <h3 class="step-title mb-3">Регистрация</h3>
-    <div id="register-error" class="alert alert-danger hidden"></div>
-    <div class="mb-3">
-      <label class="form-label">Логин</label>
-      <input type="text" id="reg-email" class="form-control" placeholder="">
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Пароль</label>
-      <div class="input-group">
-        <input type="password" id="reg-password" class="form-control" placeholder="">
-        <span class="toggle-password" onclick="togglePassword('reg-password', this)">👁</span>
-      </div>
-    </div>
-    <button class="btn btn-primary w-100" onclick="register()">Зарегистрироваться</button>
-    <p class="mt-2 text-muted text-center small">Уже есть аккаунт? <a href="#" onclick="showLogin()">Войти</a></p>
-  </div>
+<body class="app">
 
-  <!-- Вход -->
+  <!-- LOGIN -->
   <div id="step-login" class="card p-4 hidden">
     <h3 class="step-title mb-3">Вход</h3>
     <div id="login-error" class="alert alert-danger hidden"></div>
     <div class="mb-3">
       <label class="form-label">Логин</label>
-      <input type="text" id="login-email" class="form-control" placeholder="">
+      <input type="text" id="login-email" class="form-control">
     </div>
     <div class="mb-3">
       <label class="form-label">Пароль</label>
       <div class="input-group">
-        <input type="password" id="login-password" class="form-control" placeholder="">
+        <input type="password" id="login-password" class="form-control">
         <span class="toggle-password" onclick="togglePassword('login-password', this)">👁</span>
       </div>
     </div>
-    <button class="btn btn-success w-100" onclick="login()">Войти</button>
-    <p class="mt-2 text-muted text-center small">Нет аккаунта? <a href="#" onclick="showRegister()">Зарегистрироваться</a></p>
+    <button class="btn btn-success w-100" onclick="window.login()">Войти</button>
+    <p class="mt-2 text-muted text-center small">
+      Нет аккаунта? <a href="#" onclick="window.showRegister()">Зарегистрироваться</a>
+    </p>
   </div>
 
-  <!-- Сокращение + история -->
+  <!-- REGISTER -->
+  <div id="step-register" class="card p-4 hidden">
+    <h3 class="step-title mb-3">Регистрация</h3>
+    <div id="register-error" class="alert alert-danger hidden"></div>
+    <div class="mb-3">
+      <label class="form-label">Логин</label>
+      <input type="text" id="reg-email" class="form-control">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Пароль</label>
+      <div class="input-group">
+        <input type="password" id="reg-password" class="form-control">
+        <span class="toggle-password" onclick="togglePassword('reg-password', this)">👁</span>
+      </div>
+    </div>
+    <button class="btn btn-primary w-100" onclick="window.register()">Зарегистрироваться</button>
+    <p class="mt-2 text-muted text-center small">
+      Уже есть аккаунт? <a href="#" onclick="window.showLogin()">Войти</a>
+    </p>
+  </div>
+
+  <!-- APP -->
   <div id="step-shorten" class="card p-4 hidden">
     <h3 class="step-title mb-3">Сокращение ссылки</h3>
     <div id="shorten-error" class="alert alert-danger hidden"></div>
     <div class="mb-3">
-      <label class="form-label">Поле для длинной ссылки</label>
-      <input type="url" id="long-url" class="form-control" placeholder="https://example.com/ваша-ссылка">
+      <label class="form-label">Длинная ссылка</label>
+      <input type="url" id="long-url" class="form-control" placeholder="https://example.com/очень-длинная-ссылка">
     </div>
-    <button class="btn btn-dark w-100 mb-3" onclick="shorten()">Сократить</button>
-    <div id="result" class="mt-3"></div>
+    <button class="btn btn-dark w-100 mb-3" onclick="window.shorten()">Сократить</button>
+    <div id="result"></div>
     <hr>
-    <h5 class="step-title">История ссылок</h5>
-    <div id="history-list" class="mt-2"></div>
+    <h5 class="step-title mb-2">История ссылок</h5>
+    <div id="history-list"></div>
     <hr>
-    <button class="btn btn-outline-danger btn-sm w-100" onclick="logout()">Выйти</button>
+    <button class="btn btn-outline-danger btn-sm w-100" onclick="window.logout()">Выйти</button>
   </div>
 
-  <!-- Кастомная модалка подтверждения удаления -->
-  <div id="confirm-overlay" class="confirm-overlay" onclick="confirmCancel(event)">
+  <!-- MODAL -->
+  <div id="confirm-overlay" class="confirm-overlay">
     <div class="confirm-box">
       <div class="confirm-icon">🗑️</div>
       <div class="confirm-title">Удалить ссылку?</div>
       <div class="confirm-subtitle" id="confirm-subtitle"></div>
       <div class="confirm-actions">
-        <button class="btn-confirm-cancel" onclick="confirmResolve(false)">Отмена</button>
-        <button class="btn-confirm-delete" onclick="confirmResolve(true)">Удалить</button>
+        <button class="btn-confirm-cancel" id="confirm-cancel">Отмена</button>
+        <button class="btn-confirm-delete" id="confirm-ok">Удалить</button>
       </div>
     </div>
   </div>
 
-  <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center hidden" style="background: rgba(0,0,0,0.5); z-index: 9999;">
-    <div class="spinner-border text-white" role="status"></div>
-  </div>
-
+  <!-- togglePassword не зависит от модулей, поэтому в обычном скрипте -->
   <script>
-    const token = localStorage.getItem('shortener_token');
-
-    function show(id) {
-      document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
-      document.getElementById(id).classList.remove('hidden');
-    }
-
-    function showRegister() { show('step-register'); }
-    function showLogin() { show('step-login'); }
-    async function showShorten() {
-      show('step-shorten');
-      document.getElementById('result').innerHTML = '';
-      document.getElementById('long-url').value = '';
-      document.getElementById('history-list').innerHTML = '<p class="text-muted">Загрузка...</p>';
-      await loadHistory();
-    }
-
-    if (token) {
-      showShorten();
-    } else {
-      showLogin();
-    }
-
-    function loading(on) {
-      document.getElementById('loading-overlay').classList.toggle('hidden', !on);
-    }
-
-    function setError(step, message) {
-      const el = document.getElementById(step + '-error');
-      if (message) {
-        el.textContent = message;
-        el.classList.remove('hidden');
-      } else {
-        el.classList.add('hidden');
-      }
-    }
-
     function togglePassword(inputId, icon) {
       const input = document.getElementById(inputId);
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.textContent = '🙈';
-      } else {
-        input.type = 'password';
-        icon.textContent = '👁';
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // ПУНКТ 6: обработка 401 в loadHistory.
-    // Раньше: если токен протух — история тихо не загружалась,
-    // пользователь не понимал почему.
-    // Теперь: при 401 токен удаляется и пользователь уходит на логин
-    // с понятным сообщением.
-    // ---------------------------------------------------------------
-    async function loadHistory() {
-      const currentToken = localStorage.getItem('shortener_token');
-      if (!currentToken) return;
-      try {
-        const res = await fetch('/my-links', {
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-        if (res.status === 401) {
-          // ПУНКТ 6: токен протух — разлогиниваем
-          localStorage.removeItem('shortener_token');
-          showLogin();
-          setError('login', 'Сессия истекла, войдите заново');
-          return;
-        }
-        if (res.ok) {
-          const links = await res.json();
-          renderHistory(links);
-        }
-      } catch (e) {
-        console.error('Ошибка загрузки истории:', e);
-        document.getElementById('history-list').innerHTML =
-          '<p class="text-muted text-danger">Не удалось загрузить историю</p>';
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // ПУНКТ 5 + ПУНКТ 7: отображение кликов, даты и кнопки удаления.
-    // Раньше в истории был только заголовок и ссылка.
-    // ---------------------------------------------------------------
-    function renderHistory(links) {
-      const list = document.getElementById('history-list');
-      if (!links || links.length === 0) {
-        list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
-        return;
-      }
-      list.innerHTML = links.map(item => {
-        // ПУНКТ 5: форматируем дату красиво
-        let dateStr = '';
-        if (item.created_at) {
-          const d = new Date(item.created_at);
-          if (!isNaN(d)) {
-            dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          }
-        }
-        // ПУНКТ 5: форматируем клики
-        const clicksStr = item.clicks === 1 ? '1 переход' : `${item.clicks} переходов`;
-
-        return `
-          <div class="history-item" id="item-${escapeHtml(item.short_code)}">
-            <div class="history-item-body">
-              <div class="history-title">${escapeHtml(item.title)}</div>
-              <div class="history-short">
-                <a href="${item.short_url}" target="_blank">${item.short_url}</a>
-              </div>
-              <div class="history-meta">${clicksStr}${dateStr ? ' · ' + dateStr : ''}</div>
-            </div>
-            <!-- ПУНКТ 7: кнопка удаления ссылки -->
-            <button class="btn-delete" onclick="deleteLink('${escapeHtml(item.short_code)}', '${escapeHtml(item.short_url)}')" title="Удалить">✕</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // ── Кастомная модалка подтверждения ──────────────────────────
-    // Работает как Promise: возвращает true (удалить) или false (отмена).
-    // deleteLink вызывает showConfirm() и ждёт ответа через await.
-    let _confirmResolve = null;
-
-    function showConfirm(subtitle) {
-      document.getElementById('confirm-subtitle').textContent = subtitle;
-      const overlay = document.getElementById('confirm-overlay');
-      overlay.classList.add('visible');
-      return new Promise(resolve => { _confirmResolve = resolve; });
-    }
-
-    function confirmResolve(result) {
-      const overlay = document.getElementById('confirm-overlay');
-      overlay.classList.remove('visible');
-      if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
-    }
-
-    // Клик по тёмному фону = отмена
-    function confirmCancel(e) {
-      if (e.target === document.getElementById('confirm-overlay')) confirmResolve(false);
-    }
-
-    // ── Удаление ссылки ───────────────────────────────────────────
-    async function deleteLink(shortCode, linkTitle) {
-      const confirmed = await showConfirm(linkTitle);
-      if (!confirmed) return;  // пользователь нажал «Отмена»
-      const currentToken = localStorage.getItem('shortener_token');
-      try {
-        const res = await fetch(`/my-links/${shortCode}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-        if (res.ok) {
-          // Убираем карточку из DOM без перезагрузки списка
-          const el = document.getElementById(`item-${shortCode}`);
-          if (el) el.remove();
-          // Если список опустел — показываем заглушку
-          const list = document.getElementById('history-list');
-          if (!list.querySelector('.history-item')) {
-            list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
-          }
-        } else if (res.status === 401) {
-          localStorage.removeItem('shortener_token');
-          showLogin();
-          setError('login', 'Сессия истекла, войдите заново');
-        } else {
-          alert('Не удалось удалить ссылку');
-        }
-      } catch (e) {
-        console.error('Ошибка удаления:', e);
-        alert('Ошибка при удалении');
-      }
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
-
-    async function register() {
-      const email = document.getElementById('reg-email').value.trim();
-      const password = document.getElementById('reg-password').value;
-      setError('register', '');
-      if (!email || !password) {
-        setError('register', 'Заполните все поля');
-        return;
-      }
-      loading(true);
-      try {
-        // ПУНКТ 1: данные идут в теле запроса (JSON), не в URL
-        const res = await fetch('/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || 'Ошибка регистрации');
-        }
-        // После регистрации — сразу логинимся
-        const formData = new URLSearchParams();
-        formData.append('username', email);
-        formData.append('password', password);
-        const loginRes = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData
-        });
-        if (!loginRes.ok) {
-          const err = await loginRes.json();
-          throw new Error(err.detail || 'Ошибка входа после регистрации');
-        }
-        const data = await loginRes.json();
-        localStorage.setItem('shortener_token', data.access_token);
-        await showShorten();
-      } catch (e) {
-        setError('register', e.message);
-      } finally {
-        loading(false);
-      }
-    }
-
-    async function login() {
-      const email = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value;
-      setError('login', '');
-      if (!email || !password) {
-        setError('login', 'Заполните все поля');
-        return;
-      }
-      loading(true);
-      try {
-        const formData = new URLSearchParams();
-        formData.append('username', email);
-        formData.append('password', password);
-        const res = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || 'Ошибка входа');
-        }
-        const data = await res.json();
-        localStorage.setItem('shortener_token', data.access_token);
-        await showShorten();
-      } catch (e) {
-        setError('login', e.message);
-      } finally {
-        loading(false);
-      }
-    }
-
-    async function shorten() {
-      const longUrl = document.getElementById('long-url').value.trim();
-      setError('shorten', '');
-      document.getElementById('result').innerHTML = '';
-      if (!longUrl) {
-        setError('shorten', 'Введите URL');
-        return;
-      }
-      loading(true);
-      try {
-        const currentToken = localStorage.getItem('shortener_token');
-        const res = await fetch(`/shorten?url=${encodeURIComponent(longUrl)}`, {
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-        if (res.status === 401) {
-          // ПУНКТ 6: токен протух
-          localStorage.removeItem('shortener_token');
-          showLogin();
-          setError('login', 'Сессия истекла, войдите заново');
-          return;
-        }
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || 'Ошибка сокращения');
-        }
-        const data = await res.json();
-        document.getElementById('result').innerHTML = `
-          <div class="alert alert-success">
-            ✅ Короткая ссылка:<br>
-            <a href="${data.short_url}" target="_blank" class="short-link">${data.short_url}</a>
-          </div>`;
-        document.getElementById('long-url').value = '';
-        await loadHistory();
-      } catch (e) {
-        setError('shorten', e.message);
-      } finally {
-        loading(false);
-      }
-    }
-
-    function logout() {
-      localStorage.removeItem('shortener_token');
-      document.getElementById('result').innerHTML = '';
-      document.getElementById('history-list').innerHTML = '';
-      showLogin();
+      input.type = input.type === 'password' ? 'text' : 'password';
+      icon.textContent = input.type === 'password' ? '👁' : '🙈';
     }
   </script>
+
+  <script type="module" src="/static/js/app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
