@@ -2,17 +2,18 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
-// Простейшее управление спиннером
 function showLoading() {
-  document.getElementById('loading-overlay')?.classList.remove('hidden');
+  const el = document.getElementById('loading-overlay');
+  if (el) el.style.display = 'flex';  // показываем флекс-контейнер
 }
+
 function hideLoading() {
-  document.getElementById('loading-overlay')?.classList.add('hidden');
+  const el = document.getElementById('loading-overlay');
+  if (el) el.style.display = 'none';  // полностью скрываем
 }
 
 async function init() {
   initModal();
-
   const token = localStorage.getItem('shortener_token');
   if (token) {
     show('step-shorten');
@@ -37,8 +38,8 @@ function attachDeleteHandlers() {
 async function deleteLink(shortCode, shortUrl) {
   const confirmed = await showConfirm(shortUrl);
   if (!confirmed) return;
+  showLoading();
   try {
-    showLoading();
     await apiRequest(`/my-links/${shortCode}`, { method: 'DELETE' });
     const el = document.getElementById(`item-${shortCode}`);
     if (el) el.remove();
@@ -64,11 +65,7 @@ window.login = async () => {
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('login', e.message);
-  } finally {
-    hideLoading();
-  }
+  } catch (e) { setError('login', e.message); } finally { hideLoading(); }
 };
 
 window.register = async () => {
@@ -83,11 +80,7 @@ window.register = async () => {
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('register', e.message);
-  } finally {
-    hideLoading();
-  }
+  } catch (e) { setError('register', e.message); } finally { hideLoading(); }
 };
 
 window.shorten = async () => {
@@ -97,10 +90,7 @@ window.shorten = async () => {
   if (!url) { setError('shorten', 'Введите URL'); return; }
   showLoading();
   try {
-    const data = await apiRequest('/shorten', {
-      method: 'POST',
-      body: JSON.stringify({ url })
-    });
+    const data = await apiRequest('/shorten', { method: 'POST', body: JSON.stringify({ url }) });
     let msg = '✅ Ссылка создана';
     try {
       await navigator.clipboard.writeText(data.short_url);
@@ -115,11 +105,7 @@ window.shorten = async () => {
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('shorten', e.message);
-  } finally {
-    hideLoading();
-  }
+  } catch (e) { setError('shorten', e.message); } finally { hideLoading(); }
 };
 
 window.logout = () => {
