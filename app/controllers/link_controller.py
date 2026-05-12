@@ -29,6 +29,7 @@ async def delete_link_controller(short_code: str, current_user):
     deleted = link_repo.delete_link(short_code, current_user["id"])
     if not deleted:
         raise HTTPException(404, "Not found")
+    link_service.invalidate_url_cache(short_code)
     return {"message": "Deleted"}
 
 
@@ -39,8 +40,8 @@ async def stats_controller(short_code: str, current_user):
     return stats
 
 
-async def redirect_controller(short_code: str):
-    original = link_repo.get_original_url(short_code)
+def redirect_controller(short_code: str):
+    original = link_service.get_original_url_cached(short_code)
     if not original:
         raise HTTPException(404, "Not found")
     link_repo.increment_clicks(short_code)

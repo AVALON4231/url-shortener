@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-tests"
 os.environ["DATABASE_URL"] = "postgresql://test:test@localhost/test"
 
 from main import app
-from app.dependencies import get_current_user   # ← теперь отсюда
+from app.dependencies import get_current_user
 from app.services.user_service import UserService
 from app.services.link_service import LinkService
 
@@ -152,3 +152,31 @@ def test_stats_not_found_or_foreign(mocker):
         assert response.json()["detail"] == "Not found"
     finally:
         app.dependency_overrides.clear()
+
+# -----------------------------------------------------------
+# Тест кэша напрямую через LinkService (модульный)
+# -----------------------------------------------------------
+def test_link_service_cache(mocker):
+    from app.services.link_service import LinkService
+    from app.repositories.link_repository import LinkRepository
+
+    # Создаём экземпляр сервиса с замоканным репозиторием
+    mock_repo = mocker.Mock(wraps=LinkRepository())
+    mock_repo.get_original_url = mocker.Mock(return_value="https://example.com")
+    service = LinkService(link_repo=mock_repo)
+
+    # Первый вызов — репозиторий должен быть вызван
+    url1 = service.get_original_url_cached("abc123")
+    assert url1 == "https://example.com"
+    assert mock_repo.get_original_url.call_count == 1
+
+    # Второй вызов — должен взять из кэша, репозиторий не вызывается
+    url2 = service.get_original_url_cached("abc123")
+    assert url2 == "https://example.com"
+    assert mock_repo.get_original_url.call_count == 1  # не изменилось
+
+    # Инвалидируем кэш и вызываем снова — репозиторий должен быть вызван повторно
+    service.invalidate_url_cache("abc123")
+    url3 = service.get_original_url_cached("abc123")
+    assert url3 == "https://example.com"
+    assert mock_repo.get_original_url.call_count == 2

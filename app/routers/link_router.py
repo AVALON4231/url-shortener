@@ -58,5 +58,5 @@ async def stats(short_code: str, current_user: dict = Depends(get_current_user))
 
 @router.get("/{short_code}")
 async def redirect(short_code: str, request: Request):
-    original = await redirect_controller(short_code)
+    original = redirect_controller(short_code)
     return RedirectResponse(original)
