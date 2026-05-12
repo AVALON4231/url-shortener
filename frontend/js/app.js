@@ -4,12 +4,12 @@ import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
 function showLoading() {
   const el = document.getElementById('loading-overlay');
-  if (el) el.style.display = 'flex';  // показываем флекс-контейнер
+  if (el) el.style.display = 'flex';
 }
 
 function hideLoading() {
   const el = document.getElementById('loading-overlay');
-  if (el) el.style.display = 'none';  // полностью скрываем
+  if (el) el.style.display = 'none';
 }
 
 async function init() {
