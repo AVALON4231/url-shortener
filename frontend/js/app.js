@@ -2,26 +2,18 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
-// Индикатор загрузки
-function loading(show) {
-  const el = document.getElementById('loading-overlay');
-  if (el) el.classList.toggle('hidden', !show);
-}
-
 async function init() {
   initModal();
 
   const token = localStorage.getItem('shortener_token');
   if (token) {
     show('step-shorten');
-    // Загружаем историю без индикатора, чтобы интерфейс появился мгновенно
     try {
       const links = await apiRequest('/my-links');
       renderHistory(links);
       attachDeleteHandlers();
     } catch (e) {
-      console.error('Ошибка загрузки истории:', e);
-      // Если 401 — api.js сам отправит unauthorized и переключит на вход
+      console.error('История:', e);
     }
   } else {
     show('step-login');
@@ -39,105 +31,71 @@ function attachDeleteHandlers() {
 async function deleteLink(shortCode, shortUrl) {
   const confirmed = await showConfirm(shortUrl);
   if (!confirmed) return;
-
-  loading(true);
   try {
     await apiRequest(`/my-links/${shortCode}`, { method: 'DELETE' });
-
     const el = document.getElementById(`item-${shortCode}`);
     if (el) el.remove();
-
-    const list = document.getElementById('history-list');
-    if (!list.querySelector('.history-item')) {
-      list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
+    if (!document.querySelector('.history-item')) {
+      document.getElementById('history-list').innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
     }
   } catch (e) {
-    console.error('Ошибка удаления:', e.message);
-  } finally {
-    loading(false);
+    console.error('Удаление:', e);
   }
 }
 
-// --- Глобальные обработчики ---
-
 window.login = async () => {
   setError('login', '');
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { setError('login', 'Заполните все поля'); return; }
   try {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    if (!email || !password) { setError('login', 'Заполните все поля'); return; }
-    loading(true);
     await login(email, password);
-    // После успешного входа перезагружаем историю (без индикатора)
     show('step-shorten');
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('login', e.message);
-  } finally {
-    loading(false);
-  }
+  } catch (e) { setError('login', e.message); }
 };
 
 window.register = async () => {
   setError('register', '');
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  if (!email || !password) { setError('register', 'Заполните все поля'); return; }
   try {
-    const email = document.getElementById('reg-email').value.trim();
-    const password = document.getElementById('reg-password').value;
-    if (!email || !password) { setError('register', 'Заполните все поля'); return; }
-    loading(true);
     await register(email, password);
-    // После регистрации (которая сама логинит) загружаем интерфейс
     show('step-shorten');
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('register', e.message);
-  } finally {
-    loading(false);
-  }
+  } catch (e) { setError('register', e.message); }
 };
 
 window.shorten = async () => {
   setError('shorten', '');
   document.getElementById('result').innerHTML = '';
-
+  const url = document.getElementById('long-url').value.trim();
+  if (!url) { setError('shorten', 'Введите URL'); return; }
   try {
-    const url = document.getElementById('long-url').value.trim();
-    if (!url) { setError('shorten', 'Введите URL'); return; }
-
-    loading(true);
     const data = await apiRequest('/shorten', {
       method: 'POST',
       body: JSON.stringify({ url })
     });
-
-    let message = '';
+    let msg = '✅ Ссылка создана';
     try {
       await navigator.clipboard.writeText(data.short_url);
-      message = '✅ Скопировано в буфер обмена';
-    } catch {
-      message = '✅ Ссылка создана';
-    }
-
+      msg = '✅ Скопировано в буфер обмена';
+    } catch {}
     document.getElementById('result').innerHTML = `
       <div class="alert alert-success">
-        ${message}:<br>
+        ${msg}:<br>
         <a href="${data.short_url}" target="_blank" class="short-link">${data.short_url}</a>
       </div>`;
-
     document.getElementById('long-url').value = '';
-    // Обновляем историю (без индикатора)
     const links = await apiRequest('/my-links');
     renderHistory(links);
     attachDeleteHandlers();
-  } catch (e) {
-    setError('shorten', e.message);
-  } finally {
-    loading(false);
-  }
+  } catch (e) { setError('shorten', e.message); }
 };
 
 window.logout = () => {
@@ -145,10 +103,8 @@ window.logout = () => {
   document.getElementById('result').innerHTML = '';
   show('step-login');
 };
-
 window.showLogin = () => show('step-login');
 window.showRegister = () => show('step-register');
-
 window.addEventListener('unauthorized', () => {
   show('step-login');
   setError('login', 'Сессия истекла, войдите заново');
