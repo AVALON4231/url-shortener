@@ -2,7 +2,7 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
-// Управление оверлеем загрузки
+// Индикатор загрузки
 function loading(show) {
   const el = document.getElementById('loading-overlay');
   if (el) el.classList.toggle('hidden', !show);
@@ -10,27 +10,21 @@ function loading(show) {
 
 async function init() {
   initModal();
+
   const token = localStorage.getItem('shortener_token');
   if (token) {
     show('step-shorten');
-    // временно не вызываем loadApp
+    // Загружаем историю без индикатора, чтобы интерфейс появился мгновенно
+    try {
+      const links = await apiRequest('/my-links');
+      renderHistory(links);
+      attachDeleteHandlers();
+    } catch (e) {
+      console.error('Ошибка загрузки истории:', e);
+      // Если 401 — api.js сам отправит unauthorized и переключит на вход
+    }
   } else {
     show('step-login');
-  }
-}
-
-async function loadApp() {
-  // Показываем индикатор, пока история загружается
-  loading(true);
-  try {
-    const links = await apiRequest('/my-links');
-    renderHistory(links);
-    attachDeleteHandlers();
-  } catch (e) {
-    // 401 обрабатывается в api.js через событие 'unauthorized'
-    console.error('Ошибка загрузки истории:', e);
-  } finally {
-    loading(false);
   }
 }
 
@@ -74,7 +68,11 @@ window.login = async () => {
     if (!email || !password) { setError('login', 'Заполните все поля'); return; }
     loading(true);
     await login(email, password);
-    await loadApp();
+    // После успешного входа перезагружаем историю (без индикатора)
+    show('step-shorten');
+    const links = await apiRequest('/my-links');
+    renderHistory(links);
+    attachDeleteHandlers();
   } catch (e) {
     setError('login', e.message);
   } finally {
@@ -90,7 +88,11 @@ window.register = async () => {
     if (!email || !password) { setError('register', 'Заполните все поля'); return; }
     loading(true);
     await register(email, password);
-    await loadApp();
+    // После регистрации (которая сама логинит) загружаем интерфейс
+    show('step-shorten');
+    const links = await apiRequest('/my-links');
+    renderHistory(links);
+    attachDeleteHandlers();
   } catch (e) {
     setError('register', e.message);
   } finally {
@@ -127,7 +129,10 @@ window.shorten = async () => {
       </div>`;
 
     document.getElementById('long-url').value = '';
-    await loadApp();
+    // Обновляем историю (без индикатора)
+    const links = await apiRequest('/my-links');
+    renderHistory(links);
+    attachDeleteHandlers();
   } catch (e) {
     setError('shorten', e.message);
   } finally {
