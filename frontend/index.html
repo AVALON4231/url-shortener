@@ -81,7 +81,11 @@
     </div>
   </div>
 
-  <!-- togglePassword не зависит от модулей, поэтому в обычном скрипте -->
+  <!-- LOADING OVERLAY (добавлено) -->
+  <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center hidden" style="background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div class="spinner-border text-white" role="status"></div>
+  </div>
+
   <script>
     function togglePassword(inputId, icon) {
       const input = document.getElementById(inputId);

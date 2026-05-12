@@ -2,8 +2,12 @@ import { login, register, logout } from './auth.js';
 import { apiRequest } from './api.js';
 import { show, setError, renderHistory, showConfirm, initModal } from './ui.js';
 
+// Индикатор загрузки
+function loading(show) {
+  document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+}
+
 async function init() {
-  // Инициализируем модалку один раз при старте страницы
   initModal();
 
   const token = localStorage.getItem('shortener_token');
@@ -25,8 +29,6 @@ async function loadApp() {
   }
 }
 
-// Вешаем обработчики на кнопки удаления после каждого рендера истории.
-// Используем data-атрибуты вместо onclick в HTML — это чище.
 function attachDeleteHandlers() {
   document.querySelectorAll('.btn-delete').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -35,30 +37,29 @@ function attachDeleteHandlers() {
   });
 }
 
-// ДОБАВЛЕНО: удаление ссылки с кастомной модалкой подтверждения.
-// Ждём ответа пользователя через await showConfirm(),
-// затем DELETE-запрос, затем убираем карточку из DOM.
 async function deleteLink(shortCode, shortUrl) {
   const confirmed = await showConfirm(shortUrl);
   if (!confirmed) return;
 
   try {
+    loading(true);                          // индикатор при удалении
     await apiRequest(`/my-links/${shortCode}`, { method: 'DELETE' });
 
     const el = document.getElementById(`item-${shortCode}`);
     if (el) el.remove();
 
-    // Если список опустел — показываем заглушку
     const list = document.getElementById('history-list');
     if (!list.querySelector('.history-item')) {
       list.innerHTML = '<p class="text-muted">Пока нет сокращённых ссылок</p>';
     }
   } catch (e) {
     console.error('Ошибка удаления:', e.message);
+  } finally {
+    loading(false);
   }
 }
 
-// --- Глобальные обработчики для кнопок в HTML ---
+// --- Глобальные обработчики ---
 
 window.login = async () => {
   setError('login', '');
@@ -66,10 +67,13 @@ window.login = async () => {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     if (!email || !password) { setError('login', 'Заполните все поля'); return; }
+    loading(true);
     await login(email, password);
     await loadApp();
   } catch (e) {
     setError('login', e.message);
+  } finally {
+    loading(false);
   }
 };
 
@@ -79,10 +83,13 @@ window.register = async () => {
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     if (!email || !password) { setError('register', 'Заполните все поля'); return; }
+    loading(true);
     await register(email, password);
     await loadApp();
   } catch (e) {
     setError('register', e.message);
+  } finally {
+    loading(false);
   }
 };
 
@@ -94,13 +101,12 @@ window.shorten = async () => {
     const url = document.getElementById('long-url').value.trim();
     if (!url) { setError('shorten', 'Введите URL'); return; }
 
+    loading(true);
     const data = await apiRequest('/shorten', {
       method: 'POST',
       body: JSON.stringify({ url })
     });
 
-    // ИСПРАВЛЕНО: clipboard.writeText требует HTTPS и разрешения — оборачиваем в try/catch.
-    // Если clipboard недоступен — просто показываем ссылку без копирования.
     let message = '';
     try {
       await navigator.clipboard.writeText(data.short_url);
@@ -119,6 +125,8 @@ window.shorten = async () => {
     await loadApp();
   } catch (e) {
     setError('shorten', e.message);
+  } finally {
+    loading(false);
   }
 };
 
@@ -131,7 +139,6 @@ window.logout = () => {
 window.showLogin = () => show('step-login');
 window.showRegister = () => show('step-register');
 
-// api.js бросает это событие при получении 401
 window.addEventListener('unauthorized', () => {
   show('step-login');
   setError('login', 'Сессия истекла, войдите заново');
