@@ -10,12 +10,10 @@ function loading(show) {
 
 async function init() {
   initModal();
-
   const token = localStorage.getItem('shortener_token');
   if (token) {
-    // При наличии токена сразу показываем экран сокращения и загружаем историю
     show('step-shorten');
-    await loadApp();
+    // временно не вызываем loadApp
   } else {
     show('step-login');
   }
